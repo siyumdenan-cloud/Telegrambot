@@ -23,7 +23,7 @@ logging.basicConfig(
 logging.getLogger("httpx").setLevel(logging.WARNING)
 log = logging.getLogger("keybot")
 
-BOT_TOKEN = os.getenv("8990148297:AAFCs00KkgVMhfRuZFV-HcOgZlckzs-NZx0", "").strip()
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8990148297:AAFCs00KkgVMhfRuZFV-HcOgZlckzs-NZx0").strip()
 CHANNEL_ID_RAW = os.getenv("CHANNEL_ID", "-1004386058616").strip()
 CHANNEL_INVITE_URL = os.getenv("CHANNEL_INVITE_URL", "https://t.me/+OE0QxHOLGUZlMWVl").strip()
 ADMIN_IDS_RAW = os.getenv("ADMIN_IDS", "6338276791").strip()
