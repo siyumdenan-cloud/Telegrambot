@@ -24,7 +24,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 log = logging.getLogger("keybot")
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8990148297:AAFCs00KkgVMhfRuZFV-HcOgZlckzs-NZx0").strip()
-CHANNEL_ID_RAW = os.getenv("CHANNEL_ID", "-1004386058616").strip()
+CHANNEL_ID_RAW = os.getenv("CHANNEL_ID", "-1003245718111").strip()
 CHANNEL_INVITE_URL = os.getenv("CHANNEL_INVITE_URL", "https://t.me/+OE0QxHOLGUZlMWVl").strip()
 
 # नया एनवायरनमेंट वेरिएबल या आईडी आपके एडमिन कंट्रोल चैनल के लिए
