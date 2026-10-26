@@ -26,7 +26,11 @@ log = logging.getLogger("keybot")
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8990148297:AAFCs00KkgVMhfRuZFV-HcOgZlckzs-NZx0").strip()
 CHANNEL_ID_RAW = os.getenv("CHANNEL_ID", "-1004386058616").strip()
 CHANNEL_INVITE_URL = os.getenv("CHANNEL_INVITE_URL", "https://t.me/+OE0QxHOLGUZlMWVl").strip()
+
+# नया एनवायरनमेंट वेरिएबल या आईडी आपके एडमिन कंट्रोल चैनल के लिए
+ADMIN_CHANNEL_ID_RAW = os.getenv("ADMIN_CHANNEL_ID", "").strip()
 ADMIN_IDS_RAW = os.getenv("ADMIN_IDS", "6338276791").strip()
+
 DATABASE_PATH = os.getenv("DATABASE_PATH", "/data/bot.db").strip()
 COOLDOWN_SECONDS = 24 * 60 * 60
 
@@ -34,14 +38,13 @@ if not BOT_TOKEN:
     raise RuntimeError("Missing BOT_TOKEN environment variable.")
 if not CHANNEL_ID_RAW:
     raise RuntimeError("Missing CHANNEL_ID environment variable.")
-if not ADMIN_IDS_RAW:
-    raise RuntimeError("Missing ADMIN_IDS environment variable.")
 
 try:
     CHANNEL_ID = int(CHANNEL_ID_RAW)
+    ADMIN_CHANNEL_ID = int(ADMIN_CHANNEL_ID_RAW) if ADMIN_CHANNEL_ID_RAW else None
     ADMIN_IDS = {int(x.strip()) for x in ADMIN_IDS_RAW.split(",") if x.strip()}
 except ValueError as exc:
-    raise RuntimeError("CHANNEL_ID and ADMIN_IDS must contain numeric Telegram IDs.") from exc
+    raise RuntimeError("CHANNEL_ID, ADMIN_CHANNEL_ID, and ADMIN_IDS must contain numeric Telegram IDs.") from exc
 
 # Ensure the database directory exists (Railway Volume should be mounted at /data).
 db_parent = Path(DATABASE_PATH).parent
@@ -77,8 +80,22 @@ def init_db():
         """)
 
 
-def is_admin(user_id: int) -> bool:
-    return user_id in ADMIN_IDS
+async def is_admin(context: ContextTypes.DEFAULT_TYPE, user_id: int) -> bool:
+    # 1. पहले हार्डकोडेड ADMIN_IDS चेक करें
+    if user_id in ADMIN_IDS:
+        return True
+    
+    # 2. अगर एडमिन चैनल सेट है, तो चेक करें कि क्या यूजर उस चैनल का एडमिन है
+    if ADMIN_CHANNEL_ID:
+        try:
+            admins = await context.bot.get_chat_administrators(ADMIN_CHANNEL_ID)
+            for admin in admins:
+                if admin.user.id == user_id:
+                    return True
+        except TelegramError as exc:
+            log.warning("Failed to fetch admin list from admin channel: %s", exc)
+            
+    return False
 
 
 def main_keyboard(is_member: bool = False):
@@ -139,7 +156,7 @@ async def verify_or_generate(update: Update, context: ContextTypes.DEFAULT_TYPE)
             )
             return
 
-        # Only approve if Telegram delivered a join-request update for this user.
+        # Check in DB for join request
         with connect_db() as conn:
             request = conn.execute(
                 "SELECT user_id FROM join_requests WHERE user_id = ? AND chat_id = ?",
@@ -206,7 +223,6 @@ async def verify_or_generate(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 )
                 return
 
-            # Assign and set cooldown together in a database transaction.
             conn.execute(
                 "UPDATE keys SET assigned_to = ?, assigned_at = ? WHERE id = ? AND assigned_to IS NULL",
                 (user_id, now, available["id"]),
@@ -246,7 +262,7 @@ async def addkeys_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if not message or not user:
         return
-    if not is_admin(user.id):
+    if not await is_admin(context, user.id):
         await message.reply_text("⛔ This command is for bot admins only.")
         return
     replied = message.reply_to_message
@@ -276,7 +292,7 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if not message or not user:
         return
-    if not is_admin(user.id):
+    if not await is_admin(context, user.id):
         await message.reply_text("⛔ This command is for bot admins only.")
         return
     with connect_db() as conn:
@@ -299,7 +315,6 @@ async def join_request_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             "INSERT OR REPLACE INTO join_requests(user_id, chat_id, requested_at) VALUES (?, ?, ?)",
             (request.from_user.id, request.chat.id, int(time.time())),
         )
-    # Intentionally do not auto-approve here. The user must press Verify in the bot.
     log.info("Recorded join request from user %s", request.from_user.id)
 
 
